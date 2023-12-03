@@ -75,25 +75,42 @@
 
 
 
+
+
+
 let queryUrl = "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/significant_week.geojson";
 
 d3.json(queryUrl).then(function (response) {
     createFeatures(response.features);
+    createMarkers(response.features);
 });
 
-function createFeatures(earthquake) {
+let earthquakeLayer = new L.LayerGroup();
+
+function createFeatures(earthquakeData) {
     function onEachFeature(feature, layer) {
         layer.bindPopup(`<h3>${feature.properties.place}</h3><hr><p>${new Date(feature.properties.time)}</p>`);
     }
 
-    let earthquakeLayer = L.geoJSON(earthquake, {
+    earthquakeLayer.clearLayers();
+    L.geoJSON(earthquakeData, {
+        pointToLayer: function (feature, latlng) {
+            return L.circleMarker(latlng, {
+                radius: markerSize(feature.properties.mag),
+                fillColor: getColor(feature.geometry.coordinates[2]),
+                color: "white",
+                weight: 1,
+                opacity: 1,
+                fillOpacity: 0.8
+            });
+        },
         onEachFeature: onEachFeature
-    });
+    }).addTo(earthquakeLayer);
 
     createMap(earthquakeLayer);
 }
 
-function createMap(earthquake) {
+function createMap(earthquakeLayer) {
     let street = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
     });
@@ -108,13 +125,13 @@ function createMap(earthquake) {
     };
 
     let overlayMaps = {
-        Earthquake: earthquake
+        Earthquake: earthquakeLayer
     };
 
     let myMap = L.map("map", {
         center: [37.09, -95.71],
         zoom: 5,
-        layers: [street, earthquake]
+        layers: [street, earthquakeLayer]
     });
 
     L.control.layers(baseMaps, overlayMaps, {
@@ -122,50 +139,36 @@ function createMap(earthquake) {
     }).addTo(myMap);
 }
 
-function createMarkers(response) {
-    let magnitudes = response.features;
-    let magMarkers = [];
+function createMarkers(features) {
+    earthquakeLayer.clearLayers();
 
-    for (let index = 0; index < magnitudes.length; index++) {
-        let magnitude = magnitudes[index];
-        let magMarker = L.marker([magnitude.geometry.coordinates[1], magnitude.geometry.coordinates[0]])
-            .bindPopup("<h3>" + magnitude.properties.mag + "<h3><h3>Depth: " + magnitude.geometry.coordinates[2] + "</h3>");
-        magMarkers.push(magMarker);
-    }
+    features.forEach(function (feature) {
+        let magMarker = L.circleMarker([feature.geometry.coordinates[1], feature.geometry.coordinates[0]], {
+            radius: markerSize(feature.properties.mag),
+            fillColor: getColor(feature.geometry.coordinates[2]),
+            color: "white",
+            weight: 1,
+            opacity: 1,
+            fillOpacity: 0.8
+        }).bindPopup(`<h3>${feature.properties.place}</h3><hr><p>${new Date(feature.properties.time)}</p><p>Magnitude: ${feature.properties.mag}</p><p>Depth: ${feature.geometry.coordinates[2]}</p>`);
 
-    createMap(L.layerGroup(magMarkers));
+        earthquakeLayer.addLayer(magMarker);
+    });
 }
-d3.json("https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/significant_week.geojson").then(createMarkers);
 
+function markerSize(magnitude) {
+    return magnitude * 5;  
+}
 
-
-
-// function createMap(earthquakeLayer) {
-//     // Check if the map already exists, and if so, remove it
-//     if (myMap) {
-//         myMap.remove();
-//     }
-
-//     let street = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png');
-//     let topo = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png');
-
-//     let baseMaps = {
-//         "Street Map": street,
-//         "Topo": topo
-//     };
-
-//     let overlayMaps = {
-//         Earthquake: earthquakeLayer
-//     };
-
-//     myMap = L.map("map", {
-//         center: [37.09, -95.71],
-//         zoom: 5,
-//         layers: [street, earthquakeLayer]
-//     });
-
-//     L.control.layers(baseMaps, overlayMaps, {
-//         collapsed: false
-//     }).addTo(myMap);
-// }
+function getColor(depth) {
+   
+    if (depth < 10) {
+        return "#00FF00"; 
+    } else if (depth < 30) {
+        return "#FFFF00"; 
+    } else {
+        return "#FF0000"; 
+    }
+}
+  
 
